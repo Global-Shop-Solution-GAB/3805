@@ -1,0 +1,295 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.Global.sDir.Declare(String)
+Variable.Global.sHistoryDir.Declare(String)
+Variable.Global.sFile.Declare(String)
+Variable.UDT.uLog.Define("Part",String)
+Variable.UDT.uLog.Define("Reserved",String)
+Variable.UDT.uLog.Define("Requested",String)
+Variable.UDT.uLog.Define("Error",String)
+Variable.uGlobal.uLog.Declare("uLog")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sDir.Declare(String)
+V.Local.iRet.Declare(Long)
+V.Local.bExists.Declare(Boolean)
+V.local.sReturn.Declare(String)
+V.Local.iL.Declare(Long)
+V.Local.sFile.Declare(String)
+V.Local.iStatus.Declare(String)
+V.Local.sMsg.Declare(String)
+
+'F.Intrinsic.Debug.InvokeDebugger
+F.Intrinsic.Debug.Stop
+
+F.Intrinsic.UI.InvokeWaitDialog("Uploading Part Allocations...")
+
+V.Local.sDir.Set("\\VCE-WPGSTERM01\")
+
+''Get Global Dir
+'F.Intrinsic.String.InstrRev(V.Caller.PluginsDir,"\plugins",V.Local.iRet)
+'F.Intrinsic.String.Left(V.Caller.PluginsDir,V.Local.iRet,V.Local.sDir)
+'Concat file path to Global Dir
+F.Intrinsic.String.Concat(V.Local.sDir,"ALLOCATE\",V.Caller.CompanyCode,V.Global.sDir)
+F.Intrinsic.String.Concat(V.Local.sDir,"ALLOCATE\HISTORY\",V.Caller.CompanyCode,V.Global.sHistoryDir)
+
+'Check to make sure Dir exists. If not, exit program.
+F.Intrinsic.File.DirExists(V.Global.sDir,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,=,False)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Concat(V.Global.sDir,"\",V.Global.sDir)
+
+'Get file list in that Dir, loop through files
+F.Intrinsic.File.GetFileList(V.Global.sDir,V.Local.sReturn)
+F.Intrinsic.Control.If(V.local.sReturn,<>,"")
+	F.Intrinsic.String.Split(V.Local.sReturn,":",V.Local.sReturn)
+
+	F.Intrinsic.Control.For(V.Local.iL,0,V.Local.sReturn.UBound,1)
+		
+		V.global.sFile.Set(V.Local.sReturn(v.Local.iL))
+
+		F.Intrinsic.String.Concat(V.Global.sDir,V.Local.sReturn(v.Local.iL),V.Local.sFile)
+		F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bExists)
+		F.Intrinsic.Control.If(V.Local.bExists,=,True)
+	
+			F.Intrinsic.String.Concat("Uploading Part Allocations file ",V.Global.sFile,V.Local.sMsg)
+			F.Intrinsic.UI.ChangeWaitStatus(V.Local.sMsg,V.Local.iL,1,V.Local.sReturn.UBound)
+			F.Intrinsic.Control.CallSub(Buildstring,"sFile",V.Local.sFile)
+			F.Intrinsic.Control.CallSub(Errorlog,"sUploadFile",V.Args.sUploadFile)
+		F.Intrinsic.Control.EndIf
+
+	F.Intrinsic.Control.Next(V.Local.iL)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.UI.CloseWaitDialog
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: ATG_3805_INV_AllocationUpload.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.BuildString.Start
+F.Intrinsic.Control.SetErrorHandler("BuildString_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sText.Declare(String)
+V.Local.iL.Declare(String)
+V.Local.sLine.Declare(String)
+V.Local.sString.Declare(String)
+V.Local.sParam.Declare(String)
+V.Local.sTemp.Declare(String)
+V.Local.bExists.Declare(Boolean)
+
+V.Local.sFile.Set(V.Args.sFile)
+
+F.Intrinsic.File.File2String(V.local.sFile,V.Local.sText)
+F.Intrinsic.String.Split(V.Local.sText,V.Ambient.NewLine,V.Local.sText)
+
+F.Intrinsic.Control.For(V.Local.iL,1,V.Local.sText.UBound,1)
+	F.Intrinsic.Control.If(V.Local.sText(v.Local.iL),<>,"")
+		F.Intrinsic.String.SplitCSV(V.Local.sText(v.Local.iL),V.Local.sLine)
+		'Build the string
+		'Cmpny-code,part,location,opp-id,cust-id,qty-to-allocate
+		F.Intrinsic.Control.If(V.Local.iL,>,1)
+			F.Intrinsic.String.Concat(V.Local.sString,V.Ambient.NewLine,V.Local.sString)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Concat(V.local.sString,V.Caller.CompanyCode,",",V.Local.sLine(0),",,",V.Local.sLine(1),",",V.Local.sLine(2),",",V.Local.sLine(3),V.Local.sString)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iL)
+
+F.Intrinsic.String.Format(V.Ambient.Now,"yyyymmddhhmmss",V.Local.sTemp)
+F.Intrinsic.String.Concat("INVALLUPL",V.Caller.CompanyCode,V.Local.sTemp,V.Local.sParam)
+F.Intrinsic.String.Concat(V.Global.sDir,V.Local.sParam,V.Local.sParam)
+
+F.Intrinsic.File.String2File(V.Local.sParam,V.Local.sString)
+
+F.Intrinsic.File.Exists(V.Local.sParam,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,=,True)
+	F.Intrinsic.Task.LaunchGSSSync("xinv060v","-c",V.Local.sParam)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Variable.AddRV("sUploadFile",V.Local.sParam)
+
+'F.Intrinsic.Control.CallSub(Errorlog,"sFile",V.Local.sParam)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("BuildString_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: ATG_3805_INV_AllocationUpload.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.BuildString.End
+
+Program.Sub.ErrorLog.Start
+F.Intrinsic.Control.SetErrorHandler("ErrorLog_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.iL.Declare(String)
+V.Local.sText.Declare(String)
+V.Local.sLine.Declare(String)
+V.Local.iUB.Declare(Long)
+V.Local.iError.Declare(Long,0)
+V.Local.iException.Declare(Long,0)
+V.Local.sHist.Declare(String)
+
+V.Local.sFile.Set(V.Args.sUploadFile)
+
+V.uGlobal.uLog.Redim(-1,-1)
+
+F.Intrinsic.File.File2String(V.Local.sFile,V.Local.sText)
+F.Intrinsic.String.Split(V.Local.sText,V.Ambient.NewLine,V.Local.sText)
+
+F.Intrinsic.Control.For(V.Local.iL,0,V.Local.sText.UBound,1)
+	F.Intrinsic.Control.If(V.Local.sText(v.Local.iL),<>,"")
+		F.Intrinsic.String.SplitCSV(V.Local.sText(v.Local.iL),V.Local.sLine)
+
+		'Increase size of the UDT
+		F.Intrinsic.Control.If(V.uGlobal.uLog.UBound,=,-1)
+			V.uGlobal.uLog.Redim(0,0)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.Math.Add(V.uGlobal.uLog.UBound,1,V.Local.iUB)
+			V.uGlobal.uLog.RedimPreserve(0,V.local.iUB)
+		F.Intrinsic.Control.EndIf
+
+		'Set UDT Elements
+		V.uGlobal.uLog(v.Local.iUB)!Part.Set(V.Local.sLine(1))
+		V.uGlobal.uLog(v.Local.iUB)!Requested.Set(V.Local.sLine(5))
+
+		'Determine the outcome of the allocation by the returned code	and set element accordingly	
+		F.Intrinsic.Control.SelectCase(V.Local.sLine(6).trim)
+		F.Intrinsic.Control.Case("00")
+			'successful
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("Successful")
+		F.Intrinsic.Control.Case("01")
+			'itemmst open error
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("Item Master Open Error")
+			F.Intrinsic.Math.Add(V.Local.iError,1,V.Local.iError)
+		F.Intrinsic.Control.Case("02")
+			'part not found
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("Part Not Found")
+			F.Intrinsic.Math.Add(V.Local.iError,1,V.Local.iError)
+		F.Intrinsic.Control.Case("03")
+			'inv060 allocation error
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("INV060 Allocation Error")
+			F.Intrinsic.Math.Add(V.Local.iError,1,V.Local.iError)
+		F.Intrinsic.Control.Case("04")
+			'inv060 processing error
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("INV060 Processing Error")
+			F.Intrinsic.Math.Add(V.Local.iError,1,V.Local.iError)
+		F.Intrinsic.Control.Case("05")
+			'parts allocated short
+			V.uGlobal.uLog(v.Local.iUB)!Reserved.Set(V.Local.sLine(7))
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("Parts Allocated Short")
+			F.Intrinsic.Math.Add(V.Local.iException,1,V.Local.iException)
+		F.Intrinsic.Control.Case("06")
+			'no eligible lot records were found for supplied part
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("No eligible lot records were found for supplied part")
+			F.Intrinsic.Math.Add(V.Local.iError,1,V.Local.iError)
+		F.Intrinsic.Control.Case("07")
+			'malformed input record
+			V.uGlobal.uLog(v.Local.iUB)!Error.Set("Malformed Input Record")
+			F.Intrinsic.Math.Add(V.Local.iError,1,V.Local.iError)
+		F.Intrinsic.Control.EndSelect
+
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iL)
+
+F.Intrinsic.Variable.UDTToString(V.uGlobal.uLog,"Part*!*Reserved*!*Requested*!*Error",V.Ambient.NewLine,"  ",V.Local.sText)
+
+'Delete the upload File
+F.Intrinsic.File.DeleteFile(V.Local.sFile)
+
+'Move the csv file to the history folder
+F.Intrinsic.String.Concat(V.Global.sHistoryDir,"\",V.Global.sFile,V.Local.sHist)
+F.Intrinsic.String.Concat(V.Global.sDir,V.Global.sFile,V.Local.sFile)
+F.Intrinsic.File.MoveFile(V.Local.sFile,V.Local.sHist,V.Local.iError)
+
+'Call the sub to send the email
+F.Intrinsic.Control.CallSub(Email,"iError",V.Local.iError,"iException",V.Local.iException,"sBody",V.Local.sText)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("ErrorLog_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: ATG_3805_INV_AllocationUpload.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.ErrorLog.End
+
+Program.Sub.Email.Start
+F.Intrinsic.Control.SetErrorHandler("Email_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sBody.Declare(String)
+V.Local.iException.Declare(Long)
+V.Local.iError.Declare(Long)
+V.Local.sSubject.Declare(String)
+
+V.Local.sBody.Set(V.Args.sBody)
+V.Local.iError.Set(V.Args.iError)
+V.Local.iException.Set(V.Args.iException)
+V.Local.iUser.Declare(Long)
+
+'Determine subject of email
+F.Intrinsic.Control.If(V.Local.iException,>,0)
+	'has exceptions
+	F.Intrinsic.Control.If(V.Local.iError,>,0)
+		'Also has errors
+		F.Intrinsic.String.Concat(V.Global.sFile," Processed with Exception and Errors",V.Local.sSubject)
+	F.Intrinsic.Control.Else
+		'Just exception
+		F.Intrinsic.String.Concat(V.Global.sFile," Processed with Exception",V.Local.sSubject)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ElseIf(V.Local.iError,>,0)
+	'has errors
+		F.Intrinsic.String.Concat(V.Global.sFile," Processed with Errors",V.Local.sSubject)
+F.Intrinsic.Control.Else
+	'successful
+	F.Intrinsic.String.Concat(V.Global.sFile," Processed Successfully",V.Local.sSubject)
+F.Intrinsic.Control.EndIf
+
+F.Global.Security.GetUserID(V.Caller.User,V.Caller.CompanyCode,V.Local.iUser)
+
+F.Global.Messaging.QueueMessage(V.Caller.CompanyCode,V.Local.iUser,"ATG_3805_INV_AllocationUpload.gas",V.Local.sSubject,"GSS.response@vce.com*!*GSS.response@vce.com","DCT.response@vce.com*!*DCT.response@vce.com",V.Local.sBody)
+'F.Global.Messaging.QueueMessage(V.Caller.CompanyCode,V.Local.iUser,"ATG_INV_AllocationUpload.gas",V.Local.sSubject,"jhickman@gssmail.com*!*jhickman@gssmail.com","jhickman@gssmail.com*!*jhickman@gssmail.com",V.Local.sBody)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("Email_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: ATG_3805_INV_AllocationUpload.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Email.End
+
+Program.Sub.Comments.Start
+${$0$}$ATG_INV_AllocationUpload$}$JESSICA$}$4/10/2012
+Program.Sub.Comments.End
+
